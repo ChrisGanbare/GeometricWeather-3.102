@@ -39,6 +39,7 @@ import wangdaye.com.geometricweather.common.basic.GeoActivity;
 import wangdaye.com.geometricweather.common.basic.models.Location;
 import wangdaye.com.geometricweather.common.ui.decotarions.Material3ListItemDecoration;
 import wangdaye.com.geometricweather.common.utils.DisplayUtils;
+import wangdaye.com.geometricweather.common.utils.helpers.LogHelper;
 import wangdaye.com.geometricweather.common.utils.helpers.SnackbarHelper;
 import wangdaye.com.geometricweather.databinding.ActivitySearchBinding;
 import wangdaye.com.geometricweather.db.DatabaseHelper;
@@ -294,6 +295,7 @@ public class SearchActivity extends GeoActivity
     }
 
     private void setStatus(LoadableLocationList.Status newStatus) {
+        LogHelper.log("SearchActivity", "setStatus: " + newStatus);
         if(newStatus == mStatus) {
             return;
         }
@@ -320,7 +322,8 @@ public class SearchActivity extends GeoActivity
                 mBinding.progress.startAnimation(hide);
             }
             if (newStatus == LoadableLocationList.Status.ERROR) {
-                SnackbarHelper.showSnackbar(getString(R.string.feedback_search_nothing));
+                LogHelper.log("SearchActivity", "Showing error Snackbar");
+                SnackbarHelper.showSnackbar(getString(R.string.feedback_location_failed));
             }
         }
         mStatus = newStatus;
@@ -344,6 +347,11 @@ public class SearchActivity extends GeoActivity
 
             String query = textView.getText().toString();
             mViewModel.requestLocationList(query);
+        } else {
+            // 如果搜索框为空，尝试获取当前位置
+            hideKeyboard();
+            LogHelper.log("SearchActivity", "Empty search query - trying to get current location");
+            // 这里可以添加获取当前位置的逻辑
         }
         return true;
     }

@@ -16,6 +16,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext;
 import wangdaye.com.geometricweather.common.basic.models.Location;
 import wangdaye.com.geometricweather.common.basic.models.options.provider.WeatherSource;
 import wangdaye.com.geometricweather.common.utils.helpers.AsyncHelper;
+import wangdaye.com.geometricweather.common.utils.helpers.LogHelper;
 import wangdaye.com.geometricweather.settings.ConfigStore;
 import wangdaye.com.geometricweather.settings.SettingsManager;
 import wangdaye.com.geometricweather.weather.WeatherHelper;
@@ -45,14 +46,25 @@ public class SearchActivityRepository {
     
     public void searchLocationList(Context context, String query, List<WeatherSource> enabledSources,
                                    AsyncHelper.Callback<List<Location>> callback) {
+        LogHelper.log("SearchActivityRepository", "searchLocationList: query=" + query + ", enabledSources=" + enabledSources.size());
+        
+        // 如果查询为空，尝试获取当前位置
+        if (TextUtils.isEmpty(query)) {
+            // 这里可以添加获取当前位置的逻辑
+            callback.call(new ArrayList<>(), true);
+            return;
+        }
+        
         mWeatherHelper.requestLocation(context, query, enabledSources, new WeatherHelper.OnRequestLocationListener() {
             @Override
             public void requestLocationSuccess(String query, List<Location> locationList) {
+                LogHelper.log("SearchActivityRepository", "requestLocationSuccess: found " + locationList.size() + " locations");
                 callback.call(locationList, true);
             }
 
             @Override
             public void requestLocationFailed(String query) {
+                LogHelper.log("SearchActivityRepository", "requestLocationFailed: query=" + query);
                 callback.call(null, true);
             }
         });

@@ -14,6 +14,7 @@ import android.os.Build
 import androidx.core.content.ContextCompat
 import androidx.core.app.NotificationCompat
 import wangdaye.com.geometricweather.R
+import wangdaye.com.geometricweather.common.utils.helpers.LogHelper
 
 abstract class LocationService {
 
@@ -34,7 +35,7 @@ abstract class LocationService {
 
     abstract val permissions: Array<String>
     open fun hasPermissions(context: Context): Boolean {
-        val permissions = permissions
+        // 首先检查除定位权限外的其他权限
         for (p in permissions) {
             if (p == Manifest.permission.ACCESS_COARSE_LOCATION
                 || p == Manifest.permission.ACCESS_FINE_LOCATION) {
@@ -45,6 +46,7 @@ abstract class LocationService {
             }
         }
 
+        // 检查定位权限 - 至少需要一个
         val coarseLocation = ActivityCompat.checkSelfPermission(
             context,
             Manifest.permission.ACCESS_COARSE_LOCATION
@@ -53,13 +55,19 @@ abstract class LocationService {
             context,
             Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
-        return coarseLocation || fineLocation
+        
+        val hasLocationPermission = coarseLocation || fineLocation
+        LogHelper.log("LocationService", "hasPermissions: coarse=$coarseLocation, fine=$fineLocation, result=$hasLocationPermission")
+        return hasLocationPermission
     }
 
     // notification.
 
     @RequiresApi(api = Build.VERSION_CODES.O)
     fun getLocationNotificationChannel(context: Context): NotificationChannel {
+        val manager = ContextCompat.getSystemService(context, NotificationManager::class.java)
+        assert(manager != null)
+
         val channel = NotificationChannel(
             GeometricWeather.NOTIFICATION_CHANNEL_ID_LOCATION,
             getNotificationChannelName(
@@ -69,7 +77,9 @@ abstract class LocationService {
             NotificationManager.IMPORTANCE_MIN
         )
         channel.setShowBadge(false)
-        channel.lightColor = ContextCompat.getColor(context, R.color.colorPrimary)
+        channel.setSound(null, null)
+        channel.importance = NotificationManager.IMPORTANCE_NONE
+        manager!!.createNotificationChannel(channel)
         return channel
     }
 
@@ -78,12 +88,8 @@ abstract class LocationService {
             .Builder(context, GeometricWeather.NOTIFICATION_CHANNEL_ID_LOCATION)
             .setSmallIcon(R.drawable.ic_location)
             .setContentTitle(context.getString(R.string.feedback_request_location))
-            .setContentText(context.getString(R.string.feedback_request_location_in_background))
-            .setBadgeIconType(NotificationCompat.BADGE_ICON_NONE)
-            .setPriority(NotificationCompat.PRIORITY_MIN)
-            .setColor(ContextCompat.getColor(context, R.color.colorPrimary))
-            .setAutoCancel(true)
-            .setProgress(0, 0, true)
+            .setAutoCancel(false)
+            .setOngoing(true)
             .build()
     }
 }

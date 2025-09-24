@@ -12,6 +12,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import androidx.annotation.WorkerThread
+import wangdaye.com.geometricweather.common.utils.helpers.LogHelper
 
 // static.
 
@@ -19,11 +20,15 @@ private const val TIMEOUT_MILLIS = (10 * 1000).toLong()
 
 private fun isLocationEnabled(
     manager: LocationManager
-) = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-    manager.isLocationEnabled
-} else {
-    manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
-            || manager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+): Boolean {
+    val enabled = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        manager.isLocationEnabled
+    } else {
+        manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+                || manager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+    }
+    LogHelper.log("AndroidLocationService", "isLocationEnabled: $enabled")
+    return enabled
 }
 
 private fun getBestProvider(locationManager: LocationManager): String {
@@ -44,16 +49,23 @@ private fun getBestProvider(locationManager: LocationManager): String {
             .getProviders(true)
             .getOrNull(0) ?: provider
     }
-
+    
+    LogHelper.log("AndroidLocationService", "getBestProvider: $provider")
     return provider
 }
 
 @SuppressLint("MissingPermission")
 private fun getLastKnownLocation(
     locationManager: LocationManager
-) = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-    ?: locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-    ?: locationManager.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER)
+): Location? {
+    val networkLocation = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+    val gpsLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+    val passiveLocation = locationManager.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER)
+    
+    val location = networkLocation ?: gpsLocation ?: passiveLocation
+    LogHelper.log("AndroidLocationService", "getLastKnownLocation: ${location?.latitude}, ${location?.longitude}")
+    return location
+}
 
 // interface.
 
@@ -70,13 +82,23 @@ open class AndroidLocationService : LocationService(), LocationListener {
     private var gmsLastKnownLocation: Location? = null
 
     override fun requestLocation(context: Context, callback: LocationCallback) {
+        LogHelper.log("AndroidLocationService", "requestLocation started")
         cancel()
 
         locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager?
+        val hasLocationManager = locationManager != null
+        val hasPermission = hasPermissions(context)
+        val isLocationEnabled = locationManager?.let { isLocationEnabled(it) } ?: false
+        val bestProvider = locationManager?.let { getBestProvider(it) } ?: ""
+        currentProvider = bestProvider
+        
+        LogHelper.log("AndroidLocationService", "hasLocationManager=$hasLocationManager, hasPermission=$hasPermission, isLocationEnabled=$isLocationEnabled, bestProvider=$bestProvider")
+
         if (locationManager == null
             || !hasPermissions(context)
             || !isLocationEnabled(locationManager!!)
-            || getBestProvider(locationManager!!).also { currentProvider = it }.isEmpty()) {
+            || bestProvider.isEmpty()) {
+            LogHelper.log("AndroidLocationService", "requestLocation failed - returning null")
             callback.onCompleted(null)
             return
         }
@@ -93,11 +115,14 @@ open class AndroidLocationService : LocationService(), LocationListener {
         )
         timer.postDelayed({
             cancel()
-            handleLocation(gmsLastKnownLocation ?: lastKnownLocation)
+            val location = gmsLastKnownLocation ?: lastKnownLocation
+            LogHelper.log("AndroidLocationService", "requestLocation timeout - handling location: ${location?.latitude}, ${location?.longitude}")
+            handleLocation(location)
         }, TIMEOUT_MILLIS)
     }
 
     override fun cancel() {
+        LogHelper.log("AndroidLocationService", "cancel called")
         locationManager?.removeUpdates(this)
         timer.removeCallbacksAndMessages(null)
     }
@@ -109,6 +134,7 @@ open class AndroidLocationService : LocationService(), LocationListener {
         )
 
     private fun handleLocation(location: Location?) {
+        LogHelper.log("AndroidLocationService", "handleLocation: ${location?.latitude}, ${location?.longitude}")
         locationCallback?.onCompleted(
             location?.let { buildResult(it) }
         )
@@ -116,6 +142,7 @@ open class AndroidLocationService : LocationService(), LocationListener {
 
     @WorkerThread
     private fun buildResult(location: Location): Result {
+        LogHelper.log("AndroidLocationService", "buildResult: ${location.latitude.toFloat()}, ${location.longitude.toFloat()}")
         return Result(
             location.latitude.toFloat(),
             location.longitude.toFloat()
@@ -125,19 +152,23 @@ open class AndroidLocationService : LocationService(), LocationListener {
     // location listener.
 
     override fun onLocationChanged(location: Location) {
+        LogHelper.log("AndroidLocationService", "onLocationChanged: ${location.latitude}, ${location.longitude}")
         cancel()
         handleLocation(location)
     }
 
     override fun onStatusChanged(provider: String, status: Int, extras: Bundle) {
+        LogHelper.log("AndroidLocationService", "onStatusChanged: provider=$provider, status=$status")
         // do nothing.
     }
 
     override fun onProviderEnabled(provider: String) {
+        LogHelper.log("AndroidLocationService", "onProviderEnabled: $provider")
         // do nothing.
     }
 
     override fun onProviderDisabled(provider: String) {
+        LogHelper.log("AndroidLocationService", "onProviderDisabled: $provider")
         // do nothing.
     }
 }

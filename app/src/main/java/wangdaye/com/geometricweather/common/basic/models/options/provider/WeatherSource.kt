@@ -47,5 +47,6 @@ enum class WeatherSource(
     override val voiceArrayId = 0
 
     override fun getName(context: Context) = Utils.getName(context, this)
-    override fun getVoice(context: Context) = Utils.getVoice(context, this)
+    // 由于项目不需要使用语音功能，直接返回天气源名称而不是通过语音数组获取
+    override fun getVoice(context: Context) = getName(context)
 }
